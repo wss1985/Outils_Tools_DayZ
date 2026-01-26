@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>DayZ - Territory Master Pro v2.7 (Mass Duplicate)</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 20px; margin: 0; }
+        .container { max-width: 1550px; margin: auto; background: #161616; padding: 25px; border-radius: 12px; border: 1px solid #333; }
+        .layout { display: flex; gap: 20px; }
+        .side { flex: 1; min-width: 0; }
+        textarea { width: 100%; height: 300px; background: #000; color: #00ff00; border: 1px solid #444; padding: 10px; font-family: monospace; font-size: 11px; }
+        .config-panel { background: #222; padding: 20px; border-radius: 8px; border: 1px solid #444; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .field { display: flex; flex-direction: column; margin-bottom: 10px; }
+        label { font-size: 11px; color: #e67e22; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
+        select, input { padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; }
+        .btn { width: 100%; padding: 12px; font-weight: bold; cursor: pointer; border: none; border-radius: 4px; text-transform: uppercase; margin-top: 10px; }
+        .btn-apply { background: #e74c3c; color: white; border-bottom: 3px solid #c0392b; }
+        .btn-parse { background: #8e44ad; color: white; }
+        #mapContainer { position: relative; width: 750px; height: 750px; background: #050505; border: 2px solid #444; margin-top: 20px; display: none; }
+        canvas { width: 100%; height: 100%; cursor: crosshair; }
+        #mapTooltip { position: fixed; background: rgba(0,0,0,0.9); color: #fff; padding: 8px; border: 1px solid #e74c3c; border-radius: 4px; pointer-events: none; display: none; font-size: 12px; z-index: 1000; }
+        .stats-box { background: #111; border: 1px solid #333; padding: 15px; margin-top: 20px; border-radius: 8px; display: flex; justify-content: space-around; text-align: center; }
+        pre { background: #000; padding: 10px; color: #00ff00; border: 1px solid #333; height: 120px; overflow: auto; margin-top: 10px; font-size: 10px; }
+        .highlight { color: #2ecc71; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="color:#e74c3c; margin:0;">🧟 Territory Master Pro v2.7</h2>
+        <button class="btn" style="width:auto; background:#27ae60; color:white; padding: 10px 20px;" onclick="toggleMap()">🗺️ Carte Interactive</button>
+    </div>
+    
+    <div class="layout">
+        <div class="side">
+            <label>1. XML Source</label>
+            <textarea id="xmlInput" placeholder="Colle ton fichier ici..."></textarea>
+            <button class="btn btn-parse" onclick="analyserFichier()">🔍 Analyser le fichier</button>
+            
+            <div id="mapContainer">
+                <canvas id="dayzMap"></canvas>
+                <div id="mapTooltip"></div>
+                <div style="position:absolute; top:10px; left:10px; color:#0f0; background:rgba(0,0,0,0.7); padding:5px; font-size:12px; border-radius:3px;" id="liveCoords">X: 0 | Z: 0</div>
+            </div>
+
+            <div class="stats-box">
+                <div><b id="totalStatic" style="color:#2ecc71; font-size:20px;">0</b><br><label>Static Max</label></div>
+                <div><b id="totalDynamic" style="color:#3498db; font-size:20px;">0</b><br><label>Dyn. Max</label></div>
+                <div><b id="totalZones" style="color:#e67e22; font-size:20px;">0</b><br><label>Zones Totales</label></div>
+            </div>
+        </div>
+
+        <div class="side config-panel">
+            <label>2. Modification & Multiplication</label>
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="field"><label>Groupe (Couleur)</label><select id="selectColor" onchange="onColorChange()"></select></div>
+                <div class="field"><label>Multiplier la densité</label>
+                    <select id="duplicateFactor" style="border: 1px solid #2ecc71;">
+                        <option value="1">x1 (Pas de duplication)</option>
+                        <option value="2">x2 (Double les zones)</option>
+                        <option value="3">x3 (Triple les zones)</option>
+                        <option value="5">x5 (Invasion massive !)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid">
+                <div class="field"><label>Static Min</label><input type="text" id="smin" value="0"></div>
+                <div class="field"><label>Static Max</label><input type="text" id="smax" value="0"></div>
+                <div class="field"><label>Rayon (r)</label><input type="text" id="radius" value="80"></div>
+                <div class="field"><label>Dynamic Min</label><input type="text" id="dmin" value="5-8"></div>
+                <div class="field"><label>Dynamic Max</label><input type="text" id="dmax" value="10-15"></div>
+                <div class="field"><label>Décalage Doublon (m)</label><input type="number" id="offset" value="4"></div>
+            </div>
+
+            <button class="btn btn-apply" onclick="appliquerModifications()">🚀 Appliquer & Multiplier</button>
+            <button class="btn" style="background:#2980b9; color:white;" onclick="copierXML()">📋 Copier le XML final</button>
+            
+            <pre id="output"></pre>
+        </div>
+    </div>
+</div>
+
+<script>
+let territoryData = [];
+const MAP_SIZE = 15360;
+
+function toggleMap() {
+    const c = document.getElementById('mapContainer');
+    c.style.display = (c.style.display === 'none') ? 'block' : 'none';
+    if(c.style.display === 'block') drawMap();
+}
+
+function parseRange(val) {
+    if (typeof val !== "string" || !val.includes("-")) return parseInt(val) || 0;
+    const parts = val.split("-").map(p => parseInt(p.trim()));
+    return Math.floor(Math.random() * (parts[1] - parts[0] + 1)) + parts[0];
+}
+
+function analyserFichier() {
+    const xml = document.getElementById('xmlInput').value;
+    const territoryRegex = /<territory color="(.*?)">([\s\S]*?)<\/territory>/g;
+    territoryData = [];
+    let match, options = '<option value="">-- Choisir un groupe --</option>';
+    let s=0, d=0, z=0;
+
+    while ((match = territoryRegex.exec(xml)) !== null) {
+        const color = match[1];
+        const zones = [];
+        const zRegex = /<zone name="(.*?)" smin="(\d+)" smax="(\d+)" dmin="(\d+)" dmax="(\d+)" x="([\d.-]+)" z="([\d.-]+)" r="([\d.-]+)"\s*\/>/g;
+        let zm;
+        while ((zm = zRegex.exec(match[2])) !== null) {
+            s += parseInt(zm[3]); d += parseInt(zm[5]); z++;
+            zones.push({ name: zm[1], smin: zm[2], smax: zm[3], dmin: zm[4], dmax: zm[5], x: zm[6], z: zm[7], r: zm[8] });
+        }
+        territoryData.push({ color, zones });
+        options += `<option value="${color}">Groupe ${color} (${zones.length} zones)</option>`;
+    }
+    document.getElementById('selectColor').innerHTML = options;
+    document.getElementById('totalStatic').textContent = s;
+    document.getElementById('totalDynamic').textContent = d;
+    document.getElementById('totalZones').textContent = z;
+    drawMap();
+}
+
+function onColorChange() { drawMap(); }
+
+function drawMap() {
+    const canvas = document.getElementById('dayzMap');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const size = canvas.parentElement.clientWidth;
+    canvas.width = size; canvas.height = size;
+    const selColor = document.getElementById('selectColor').value;
+
+    ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = "#111";
+    for(let i=0; i<size; i += size/10) { ctx.strokeRect(i, 0, 1, size); ctx.strokeRect(0, i, size, 1); }
+
+    territoryData.forEach(g => {
+        if(selColor && g.color !== selColor) return;
+        g.zones.forEach(z => {
+            const px = (z.x / MAP_SIZE) * size;
+            const py = size - ((z.z / MAP_SIZE) * size);
+            ctx.fillStyle = z.name.includes("Army") ? "#e74c3c" : (z.name.includes("City") ? "#3498db" : "#f1c40f");
+            ctx.beginPath(); ctx.arc(px, py, (selColor?3:1.5), 0, Math.PI*2); ctx.fill();
+        });
+    });
+}
+
+function appliquerModifications() {
+    const selColor = document.getElementById('selectColor').value;
+    if (!selColor) return alert("Choisis un groupe !");
+    
+    const factor = parseInt(document.getElementById('duplicateFactor').value);
+    const offsetVal = parseFloat(document.getElementById('offset').value);
+    let finalXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n<territory-type>\n';
+    let posMap = new Map();
+
+    territoryData.forEach(group => {
+        finalXml += `    <territory color="${group.color}">\n`;
+        
+        group.zones.forEach(zone => {
+            // Combien de fois on écrit cette zone ?
+            let loop = (group.color === selColor) ? factor : 1;
+            
+            for(let i=0; i < loop; i++) {
+                let x = parseFloat(zone.x), z = parseFloat(zone.z);
+                
+                if (group.color === selColor) {
+                    zone.smin = parseRange(document.getElementById('smin').value);
+                    zone.smax = parseRange(document.getElementById('smax').value);
+                    zone.dmin = parseRange(document.getElementById('dmin').value);
+                    zone.dmax = parseRange(document.getElementById('dmax').value);
+                    zone.r = parseRange(document.getElementById('radius').value);
+                }
+
+                // Gestion décalage pour éviter le stack parfait
+                let key = `${x.toFixed(1)}_${z.toFixed(1)}`;
+                if (posMap.has(key)) {
+                    let count = posMap.get(key);
+                    x += (offsetVal * count); z += (offsetVal * count);
+                    posMap.set(key, count + 1);
+                } else { posMap.set(key, 1); }
+
+                finalXml += `        <zone name="${zone.name}" smin="${zone.smin}" smax="${zone.smax}" dmin="${zone.dmin}" dmax="${zone.dmax}" x="${x.toFixed(2)}" z="${z.toFixed(2)}" r="${zone.r}"/>\n`;
+            }
+        });
+        finalXml += `    </territory>\n`;
+    });
+
+    finalXml += '</territory-type>';
+    document.getElementById('output').textContent = finalXml;
+    analyserFichier(); 
+    alert("Terminé ! Densité multipliée par " + factor + " sur le groupe.");
+}
+
+// Event souris map (coordonnées)
+document.getElementById('dayzMap').addEventListener('mousemove', function(e) {
+    const rect = e.target.getBoundingClientRect();
+    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+    const dX = Math.round((x / e.target.width) * MAP_SIZE);
+    const dZ = Math.round(((e.target.width - y) / e.target.width) * MAP_SIZE);
+    document.getElementById('liveCoords').textContent = `X: ${dX} | Z: ${dZ}`;
+});
+
+function copierXML() {
+    navigator.clipboard.writeText(document.getElementById('output').textContent);
+    alert("XML Copié !");
+}
+</script>
+</body>
+</html>
