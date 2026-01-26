@@ -30,6 +30,6 @@ Copiez le résultat généré et remplacez votre ancien fichier sur votre serveu
 
 👨‍💻 Installation
 Bash
-git clone https://github.com/wss1985/dayz-territory-master.git
+git clone https://github.com/wss1985/DayZ-Types-Trader-Extracteur.git
 # Ouvrez simplement les fichiers .html dans votre navigateur !
 Outil développé pour faciliter la vie des admins DayZ. Bon modding ! 🍻
