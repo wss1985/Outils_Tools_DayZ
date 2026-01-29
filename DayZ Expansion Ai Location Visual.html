@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>DayZ Expansion Ai Location Visual</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .wrapper { display: flex; gap: 20px; max-width: 1550px; width: 100%; }
+        .panel { background: #161616; padding: 20px; border-radius: 10px; border: 1px solid #333; flex: 1; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .map-box { position: relative; width: 800px; height: 800px; background: #000; border: 2px solid #444; border-radius: 8px; cursor: crosshair; overflow: hidden; }
+        canvas { display: block; width: 800px; height: 800px; }
+        
+        #mapTooltip { 
+            position: absolute; background: rgba(0, 0, 0, 0.9); color: #00ff00; padding: 10px; 
+            border: 1px solid #00ff00; border-radius: 5px; pointer-events: none; display: none; 
+            font-size: 13px; z-index: 1000; box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+        }
+
+        textarea { width: 100%; height: 120px; background: #000; color: #2ecc71; border: 1px solid #444; padding: 10px; font-family: monospace; font-size: 11px; margin-bottom: 10px; }
+        .btn { padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 10px; text-transform: uppercase; }
+        .btn-load { background: #8e44ad; color: white; }
+        .btn-add { background: #27ae60; color: white; }
+        .btn-copy { background: #2980b9; color: white; }
+        
+        .coords-info { background: #111; padding: 15px; border: 1px solid #e67e22; color: #e67e22; font-family: monospace; font-size: 16px; margin-bottom: 15px; text-align: center; border-radius: 5px; }
+        .input-group { margin-bottom: 15px; background: #222; padding: 10px; border-radius: 5px; }
+        label { display: block; margin-bottom: 5px; font-size: 12px; color: #aaa; }
+        input[type="text"], input[type="number"] { background: #000; color: white; width: calc(100% - 22px); border: 1px solid #444; padding: 8px; border-radius: 3px; }
+        input[type="range"] { width: 100%; margin-top: 10px; }
+        
+        .point-list { height: 200px; overflow-y: auto; background: #050505; padding: 10px; border: 1px solid #333; font-size: 12px; margin-top: 10px; }
+        .point-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; border-bottom: 1px solid #222; }
+        .point-item:hover { background: #111; }
+    </style>
+</head>
+<body>
+
+    <div class="wrapper">
+        <div class="map-side">
+            <div class="map-box" id="mapCont">
+                <canvas id="aiMap"></canvas>
+                <div id="mapTooltip"></div>
+                <div style="position:absolute; bottom:10px; left:10px; background:rgba(0,0,0,0.8); padding:5px; color:#0f0; font-size:12px; border:1px solid #333;">X | Z Chernarus</div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 style="color:#e74c3c; text-align:center; margin-top:0;">📍 DayZ Expansion Ai Location Visual</h2>
+            
+            <label>COLLE TON JSON ICI :</label>
+            <textarea id="jsonInput" placeholder="RoamingLocations..."></textarea>
+            <button class="btn btn-load" onclick="loadJSON()">🔄 CHARGER LES POINTS</button>
+
+            <div class="coords-info" id="selectedDisplay">CLIQUE SUR LA MAP POUR PLACER</div>
+            
+            <div class="input-group">
+                <label>NOM DE L'EMPLACEMENT :</label>
+                <input type="text" id="nodeName" placeholder="Ex: Patrouille_Nord">
+            </div>
+
+            <div class="input-group">
+                <label>RAYON (RADIUS) : <span id="radiusVal" style="color:#2ecc71; font-weight:bold;">150</span>m</label>
+                <input type="range" id="nodeRadius" min="10" max="5000" value="150" oninput="document.getElementById('radiusVal').textContent = this.value; draw();">
+            </div>
+
+            <button class="btn btn-add" onclick="addNode()">➕ AJOUTER LE POINT AU JSON</button>
+
+            <label>POINTS ACTUELS :</label>
+            <div class="point-list" id="pointList"></div>
+            
+            <button class="btn btn-copy" style="margin-top:15px;" onclick="copyJSON()">📋 COPIER LE JSON FINAL</button>
+        </div>
+    </div>
+
+<script>
+    const MAP_SIZE = 17000; // Taille standard Chernarus 15360 porté a 17000 pour voir déventuelle point hors map
+    const canvas = document.getElementById('aiMap');
+    const ctx = canvas.getContext('2d');
+    const tooltip = document.getElementById('mapTooltip');
+    canvas.width = 800; canvas.height = 800;
+
+    let aiNodes = []; 
+    let selectedPos = { x: 0, z: 0 };
+
+    function draw() {
+        ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, 800, 800);
+        
+        // Grille
+        ctx.strokeStyle = "#151515";
+        for(let i=0; i<800; i += 80) {
+            ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,800); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(800,i); ctx.stroke();
+        }
+
+        // Dessiner les points existants
+        aiNodes.forEach(node => {
+            const px = (node.Position[0] / MAP_SIZE) * 800;
+            const py = 800 - ((node.Position[2] / MAP_SIZE) * 800);
+            const pr = (node.Radius / MAP_SIZE) * 800;
+
+            // Cercle du Radius
+            ctx.beginPath();
+            ctx.arc(px, py, pr, 0, Math.PI*2);
+            ctx.fillStyle = "rgba(52, 152, 219, 0.15)";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(52, 152, 219, 0.5)";
+            ctx.stroke();
+
+            // Point Central
+            ctx.fillStyle = "#3498db";
+            ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Dessiner le point en cours de création
+        if(selectedPos.x !== 0) {
+            const sx = (selectedPos.x / MAP_SIZE) * 800;
+            const sy = 800 - ((selectedPos.z / MAP_SIZE) * 800);
+            const sr = (document.getElementById('nodeRadius').value / MAP_SIZE) * 800;
+
+            // Radius prévisualisation
+            ctx.beginPath();
+            ctx.arc(sx, sy, sr, 0, Math.PI*2);
+            ctx.fillStyle = "rgba(231, 76, 60, 0.2)";
+            ctx.fill();
+            ctx.strokeStyle = "#e74c3c";
+            ctx.stroke();
+
+            ctx.fillStyle = "#e74c3c";
+            ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+        const rx = (mx / 800) * MAP_SIZE; const rz = (1 - (my / 800)) * MAP_SIZE;
+
+        let found = false;
+        for (let node of aiNodes) {
+            const dist = Math.sqrt(Math.pow(node.Position[0] - rx, 2) + Math.pow(node.Position[2] - rz, 2));
+            if (dist < node.Radius) {
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX + 15) + 'px';
+                tooltip.style.top = (e.clientY + 15) + 'px';
+                tooltip.innerHTML = `<strong>${node.Name}</strong><br>Rayon: ${node.Radius}m<br>X: ${Math.round(node.Position[0])} | Z: ${Math.round(node.Position[2])}`;
+                found = true; break;
+            }
+        }
+        if (!found) tooltip.style.display = 'none';
+    });
+
+    canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        selectedPos.x = Math.round(((e.clientX - rect.left) / 800) * MAP_SIZE);
+        selectedPos.z = Math.round((1 - (e.clientY - rect.top) / 800) * MAP_SIZE);
+        document.getElementById('selectedDisplay').textContent = `X: ${selectedPos.x} | Z: ${selectedPos.z}`;
+        draw();
+    });
+
+    function loadJSON() {
+        try {
+            const data = JSON.parse(document.getElementById('jsonInput').value);
+            aiNodes = data.RoamingLocations || data.AiLocation || data.AIPatrolLocation || [];
+            
+            if(aiNodes.length > 0) {
+                aiNodes.forEach(n => { if(n.Pos && !n.Position) n.Position = n.Pos; });
+                updateList(); draw();
+                alert(aiNodes.length + " points chargés avec succès !");
+            } else {
+                alert("Aucun point trouvé dans le JSON.");
+            }
+        } catch(e) { alert("Erreur de format JSON."); }
+    }
+
+    function addNode() {
+        const name = document.getElementById('nodeName').value || "AI_Patrol_" + (aiNodes.length + 1);
+        const rad = parseFloat(document.getElementById('nodeRadius').value);
+        if(selectedPos.x === 0) { alert("Clique sur la carte d'abord !"); return; }
+        
+        aiNodes.push({
+            "Name": name,
+            "Position": [selectedPos.x, 0, selectedPos.z],
+            "Radius": rad,
+            "Type": "Static",
+            "Enabled": 1
+        });
+        updateList(); draw();
+        // Reset nom pour le prochain
+        document.getElementById('nodeName').value = "";
+    }
+
+    function updateList() {
+        const list = document.getElementById('pointList');
+        list.innerHTML = "";
+        aiNodes.forEach((n, idx) => {
+            list.innerHTML += `<div class="point-item">
+                <span><b>${n.Name}</b> (${n.Radius}m)</span>
+                <button onclick="removeNode(${idx})" style="background:#c0392b; color:white; border:none; border-radius:3px; padding:3px 8px; cursor:pointer;">SUPPR</button>
+            </div>`;
+        });
+    }
+
+    function removeNode(idx) { aiNodes.splice(idx, 1); updateList(); draw(); }
+
+    function copyJSON() {
+        const out = { "m_Version": 4, "RoamingLocations": aiNodes };
+        const text = JSON.stringify(out, null, 4);
+        navigator.clipboard.writeText(text);
+        document.getElementById('jsonInput').value = text;
+        alert("JSON copié dans le presse-papier !");
+    }
+
+    draw();
+</script>
+</body>
+</html>
