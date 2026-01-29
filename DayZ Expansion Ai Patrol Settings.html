@@ -4,34 +4,33 @@
     <meta charset="UTF-8">
     <title>DayZ Expansion Ai Patrol Settings</title>
     <style>
-        body { background: #0f0f0f; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
-        .container { max-width: 1200px; margin: auto; }
+        body { background: #0f0f0f; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; }
+        .container { max-width: 1400px; margin: auto; }
         textarea { width: 100%; height: 100px; background: #1a1a1a; color: #2ecc71; border: 1px solid #333; padding: 10px; border-radius: 5px; margin-bottom: 10px; font-family: monospace; }
-        .card { background: #1a1a1a; border: 1px solid #333; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-top: 4px solid #3498db; position: relative; }
+        .card { background: #1a1a1a; border: 1px solid #333; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-top: 4px solid #3498db; }
         .card h3 { margin: 0 0 20px 0; color: #3498db; display: flex; justify-content: space-between; align-items: center; background: #222; padding: 10px; border-radius: 4px; }
-        .grid-settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+        .grid-settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 15px; }
         .setting-group { display: flex; flex-direction: column; background: #252525; padding: 10px; border-radius: 4px; border: 1px solid #333; }
         label { font-size: 0.7em; color: #f1c40f; margin-bottom: 5px; text-transform: uppercase; font-weight: bold; }
         input, select { background: #000; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 3px; font-size: 0.9em; }
-        .waypoints-section { margin-top: 20px; padding-top: 15px; border-top: 1px solid #333; }
-        .wp-row { display: flex; gap: 8px; margin-bottom: 5px; align-items: center; }
-        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .wp-row { display: flex; gap: 8px; margin-bottom: 5px; align-items: center; background: #111; padding: 5px; border-radius: 4px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; text-transform: uppercase; }
         .btn-add { background: #27ae60; color: white; margin-top: 10px; }
-        .btn-del { background: #c0392b; color: white; padding: 5px 10px; font-size: 0.8em; }
+        .btn-del { background: #c0392b; color: white; padding: 5px 10px; }
         .btn-clone { background: #f39c12; color: white; margin-top: 10px; width: 100%; }
-        .btn-remove-patrol { background: #7f8c8d; color: white; font-size: 0.7em; padding: 5px; }
-        .header-actions { display: flex; gap: 10px; position: sticky; top: 0; z-index: 100; background: #0f0f0f; padding: 10px 0; }
+        .header-actions { display: flex; gap: 10px; position: sticky; top: 0; z-index: 100; background: #0f0f0f; padding: 10px 0; border-bottom: 1px solid #333; }
+        .highlight-new { border: 1px solid #e67e22 !important; box-shadow: 0 0 5px rgba(230, 126, 34, 0.5); }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h1>🤖 DayZ Expansion Ai Patrol Settings</h1>
-    <textarea id="patrolInput" placeholder="Collez ici le contenu de votre fichier AIPatrolSettings.json"></textarea>
+    <textarea id="patrolInput" placeholder="Collez votre JSON ici..."></textarea>
     
     <div class="header-actions">
-        <button class="btn" style="background:#27ae60; color:white; width:100%;" onclick="loadData()">⚡ ANALYSER & ÉDITER</button>
-        <button id="copyBtn" class="btn" style="display:none; background:#3498db; color:white; width:100%;" onclick="copyClipboard()">📋 COPIER LE RÉSULTAT</button>
+        <button class="btn" style="background:#27ae60; color:white; flex:1;" onclick="loadData()">⚡ ANALYSER & ÉDITER TOUT</button>
+        <button id="copyBtn" class="btn" style="display:none; background:#3498db; color:white; flex:1;" onclick="copyClipboard()">📋 COPIER LE RÉSULTAT</button>
     </div>
 
     <div id="editorArea"></div>
@@ -41,31 +40,18 @@
 <script>
     let data = null;
 
-    // ==========================================================
-    // CONFIGURATION DES LISTES (MODIFIEZ VOS OPTIONS ICI)
-    // ==========================================================
+    // Récupération de TOUTES les listes d'options du premier fichier
     const factions = ["West", "East", "Guards", "Raiders", "Mercenaries", "Civilian", "RANDOM", "Passive", "InvincibleGuards", "Shamans", "Observers", "InvincibleObservers", "YeetBrigade", "InvincibleYeetBrigade", "Brawlers"];
-    
     const loadouts = ["BanditLoadout", "EastLoadout", "FreshSpawnLoadout", "SurvivorLoadout", "WestLoadout", "FireFighterLoadout", "GorkaLoadout", "HumanLoadout", "NBCLoadout", "PoliceLoadout", "TTSKOLoadout", "YeetBrigadeLoadout", "YellowKingLoadout"];
-    
     const formations = ["Column", "InvColumn", "File", "InvFile", "Vee", "InvVee", "Wall", "Star", "StarDot", "Circle", "CircleDot", "RANDOM"];
-
     const behaviours = ["HALT", "ONCE", "LOOP", "ALTERNATE", "LOOP_OR_ALTERNATE", "HALT_OR_ALTERNATE", "HALT_OR_LOOP", "ROAMING", "ROAMING_LOCAL"];
-
     const threatSpeeds = ["STATIC", "WALK", "JOG", "SPRINT", "RANDOM", "RANDOM_NONSTATIC"];
-
     const stances = ["STANDING", "CROUCHED", "PRONE"];
-
     const reloadOptions = [
-        { val: 0, label: "0: Off" },
-        { val: 1, label: "1: All" },
-        { val: 2, label: "2: Animals" },
-        { val: 4, label: "4: Infected" },
-        { val: 6, label: "6: Animal+Infect" },
-        { val: 8, label: "8: Players" },
-        { val: 16, label: "16: Vehicles" }
+        { val: 0, label: "0: Off" }, { val: 1, label: "1: All" }, { val: 2, label: "2: Animals" },
+        { val: 4, label: "4: Infected" }, { val: 6, label: "6: Animal+Infect" },
+        { val: 8, label: "8: Players" }, { val: 16, label: "16: Vehicles" }
     ];
-    // ==========================================================
 
     function loadData() {
         try {
@@ -73,7 +59,7 @@
             render();
             document.getElementById('copyBtn').style.display = 'block';
             document.getElementById('genBtn').style.display = 'block';
-        } catch(e) { alert("Erreur JSON : vérifiez le fichier !"); }
+        } catch(e) { alert("Erreur JSON !"); }
     }
 
     function render() {
@@ -96,39 +82,40 @@
             card.innerHTML = `
                 <h3>
                     <input type="text" value="${p.Name || ''}" onchange="upVal(${pIdx},'Name',this.value)" style="background:transparent; border:none; color:#3498db; font-weight:bold; width:300px;">
-                    <button class="btn btn-remove-patrol" onclick="removePatrol(${pIdx})">Supprimer Patrouille</button>
+                    <button class="btn btn-del" style="font-size:0.7em" onclick="removePatrol(${pIdx})">Supprimer Patrouille</button>
                 </h3>
 
                 <div class="grid-settings">
                     <div class="setting-group"><label>🛡️ Faction</label>${createSelect(factions, p.Faction, 'Faction')}</div>
                     <div class="setting-group"><label>📂 Loadout</label>${createSelect(loadouts, p.Loadout, 'Loadout')}</div>
                     <div class="setting-group"><label>📐 Formation</label>${createSelect(formations, p.Formation, 'Formation')}</div>
-                    <div class="setting-group"><label>📏 Relâchement (0-1)</label><input type="number" step="0.1" value="${p.FormationLooseness || 0}" onchange="upVal(${pIdx},'FormationLooseness',parseFloat(this.value))"></div>
                     <div class="setting-group"><label>🧠 Comportement</label>${createSelect(behaviours, p.Behaviour, 'Behaviour')}</div>
                     <div class="setting-group"><label>⚡ Vit. Menace</label>${createSelect(threatSpeeds, p.UnderThreatSpeed, 'UnderThreatSpeed')}</div>
                     <div class="setting-group"><label>🧘 Posture Default</label>${createSelect(stances, p.DefaultStance, 'DefaultStance')}</div>
                     <div class="setting-group"><label>🔫 Mag Illimité (Bitmask)</label>${createSelect(reloadOptions, p.UnlimitedReload, 'UnlimitedReload')}</div>
                     
+                    <div class="setting-group"><label style="color:#e67e22">💾 Persistence (0/1)</label><input type="number" class="highlight-new" value="${p.Persistence || 0}" onchange="upVal(${pIdx},'Persistence',parseInt(this.value))"></div>
+                    
                     <div class="setting-group"><label>👥 Nb IA Min</label><input type="number" value="${p.NumberOfAI}" onchange="upVal(${pIdx},'NumberOfAI',parseInt(this.value))"></div>
                     <div class="setting-group"><label>👥 Nb IA Max</label><input type="number" value="${p.NumberOfAIMax}" onchange="upVal(${pIdx},'NumberOfAIMax',parseInt(this.value))"></div>
-                    <div class="setting-group"><label>🎒 Looting</label><select onchange="upVal(${pIdx},'LootingBehaviour',this.value)"><option value="ALL" ${p.LootingBehaviour=='ALL'?'selected':''}>ALL</option><option value="NONE" ${p.LootingBehaviour=='NONE'?'selected':''}>NONE</option></select></div>
-                    <div class="setting-group"><label>🏃 Vitesse Hors Combat</label><select onchange="upVal(${pIdx},'Speed',this.value)"><option value="WALK" ${p.Speed=='WALK'?'selected':''}>WALK</option><option value="JOG" ${p.Speed=='JOG'?'selected':''}>JOG</option><option value="SPRINT" ${p.Speed=='SPRINT'?'selected':''}>SPRINT</option></select></div>
+                    <div class="setting-group"><label>📏 Relâchement</label><input type="number" step="0.1" value="${p.FormationLooseness || 0}" onchange="upVal(${pIdx},'FormationLooseness',parseFloat(this.value))"></div>
                     <div class="setting-group"><label>💀 Lootable ? (0/1)</label><input type="number" value="${p.CanBeLooted}" onchange="upVal(${pIdx},'CanBeLooted',parseInt(this.value))"></div>
-                    <div class="setting-group"><label>🎲 Start Aléatoire (0/1)</label><input type="number" value="${p.UseRandomWaypointAsStartPoint}" onchange="upVal(${pIdx},'UseRandomWaypointAsStartPoint',parseInt(this.value))"></div>
+                    <div class="setting-group"><label>🎲 Start Aléatoire</label><input type="number" value="${p.UseRandomWaypointAsStartPoint}" onchange="upVal(${pIdx},'UseRandomWaypointAsStartPoint',parseInt(this.value))"></div>
                     <div class="setting-group"><label>📈 Chance (0-1)</label><input type="number" step="0.1" value="${p.Chance}" onchange="upVal(${pIdx},'Chance',parseFloat(this.value))"></div>
+                    <div class="setting-group"><label>🏃 Vitesse</label><select onchange="upVal(${pIdx},'Speed',this.value)"><option value="WALK" ${p.Speed=='WALK'?'selected':''}>WALK</option><option value="JOG" ${p.Speed=='JOG'?'selected':''}>JOG</option><option value="SPRINT" ${p.Speed=='SPRINT'?'selected':''}>SPRINT</option></select></div>
                 </div>
 
                 <div class="waypoints-section">
-                    <label>🛤️ Itinéraire (Waypoints)</label>
+                    <label>🛤️ Waypoints</label>
                     <div id="wp-list-${pIdx}">${p.Waypoints.map((wp, wIdx) => `
                         <div class="wp-row">
-                            <span class="wp-num">#${wIdx+1}</span>
+                            <span style="color:#f39c12">#${wIdx+1}</span>
                             <input type="number" step="0.01" value="${wp[0]}" onchange="updateWP(${pIdx},${wIdx},0,this.value)">
                             <input type="number" step="0.01" value="${wp[2]}" onchange="updateWP(${pIdx},${wIdx},2,this.value)">
-                            <button class="btn btn-del" onclick="removeWP(${pIdx},${wIdx})">Suppr</button>
+                            <button class="btn btn-del" style="padding:2px 5px" onclick="removeWP(${pIdx},${wIdx})">X</button>
                         </div>`).join('')}
                     </div>
-                    <button class="btn btn-add" onclick="addWP(${pIdx})">+ Waypoint</button>
+                    <button class="btn btn-add" style="width:100%" onclick="addWP(${pIdx})">+ Waypoint</button>
                     <button class="btn btn-clone" onclick="clonePatrol(${pIdx})">👯 Cloner la patrouille</button>
                 </div>
             `;
@@ -140,9 +127,9 @@
     function updateWP(pIdx, wIdx, cIdx, val) { data.Patrols[pIdx].Waypoints[wIdx][cIdx] = parseFloat(val); }
     function addWP(pIdx) { const wps = data.Patrols[pIdx].Waypoints; const last = wps[wps.length - 1]; wps.push([last[0] + 10, 0.0, last[2] + 10]); render(); }
     function removeWP(pIdx, wIdx) { if (data.Patrols[pIdx].Waypoints.length > 1) { data.Patrols[pIdx].Waypoints.splice(wIdx, 1); render(); } }
-    function clonePatrol(pIdx) { let copy = JSON.parse(JSON.stringify(data.Patrols[pIdx])); copy.Name += "_copie"; data.Patrols.push(copy); render(); window.scrollTo(0, document.body.scrollHeight); }
-    function removePatrol(pIdx) { if(confirm("Supprimer cette patrouille ?")) { data.Patrols.splice(pIdx, 1); render(); } }
-    function generateJSON() { document.getElementById('patrolInput').value = JSON.stringify(data, null, 4); window.scrollTo(0,0); }
+    function clonePatrol(pIdx) { let copy = JSON.parse(JSON.stringify(data.Patrols[pIdx])); copy.Name += "_copie"; data.Patrols.push(copy); render(); }
+    function removePatrol(pIdx) { if(confirm("Supprimer ?")) { data.Patrols.splice(pIdx, 1); render(); } }
+    function generateJSON() { document.getElementById('patrolInput').value = JSON.stringify(data, null, 4); }
     function copyClipboard() { generateJSON(); const el = document.getElementById('patrolInput'); el.select(); navigator.clipboard.writeText(el.value); alert("Copié !"); }
 </script>
 </body>
